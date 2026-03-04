@@ -4,10 +4,10 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Ionicons from '@react-native-vector-icons/ionicons';
-import ChatBot from '../components/chatBot';
+import ChatBot from '../components/chatBot/chatBot';
+import ChatAgentService from '../components/chatBot/chatAgentSvc';
 
 // ─── Shared ─────────────────────────────────────────────────────────────────
-
 
 const W = {
   bg: '#FFF8F0', card: '#FFFFFF', primary: '#E8652D', secondary: '#F5A623',

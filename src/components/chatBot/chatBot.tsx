@@ -2,6 +2,11 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 import { useEffect, useRef, useState } from "react";
 import { Animated, FlatList, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from '@react-navigation/native';
+import ChatAgentService from './chatAgentSvc';
+import type { NavigationIntent } from './chatAgentSvc';
+
+const chatSvc = new ChatAgentService();
 
 const W = {
   bg: '#FFF8F0', card: '#FFFFFF', primary: '#E8652D', secondary: '#F5A623',
@@ -80,6 +85,8 @@ const cs = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   sendBtnDisabled: {backgroundColor: '#E0C8BB'},
+  bubbleNavigationUser: {color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2},
+  bubbleNavigation: {color: W.primary, fontSize: 12, marginTop: 2},
 });
 
 type Message = {id: string; text: string; from: 'user' | 'bot'; time: string};
@@ -114,6 +121,7 @@ const CHIPS = ['My balance', 'Expenses', 'Income', 'Give me a tip'];
 
 const ChatBot = () => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const [chatOpen, setChatOpen] = useState(false);
   const [chatVisible, setChatVisible] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -138,6 +146,16 @@ const ChatBot = () => {
     );
   };
 
+  const handleNavigate = (intent: NavigationIntent) => {
+    // Small delay so the close animation starts before navigating
+    console.log("intent >>>>>>>>>>",intent);
+    
+    setTimeout(() => {
+      closeChat();
+      (navigation as any).navigate(intent);
+    }, 1000);
+  };
+
   const sendMessage = (override?: string) => {
     const text = (override ?? input).trim();
     if (!text) { return; }
@@ -145,16 +163,22 @@ const ChatBot = () => {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setBotTyping(true);
-    setTimeout(() => {
-      const botMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        text: getBotReply(text),
-        from: 'bot',
-        time: nowTime(),
-      };
-      setMessages(prev => [...prev, botMsg]);
-      setBotTyping(false);
-    }, 900);
+    chatSvc.getResponse(text)
+      .then(chatResponse => {
+        setMessages(prev => [...prev, {id: (Date.now() + 1).toString(), text: chatResponse.reply, from: 'bot', time: nowTime(),
+        ...(chatResponse?.navigate ? {hasNavigation: !!chatResponse?.navigate, navigation: chatResponse?.navigate} : {})
+
+        }]);
+        
+        // if (chatResponse?.navigate) {
+        //   handleNavigate(chatResponse.navigate);
+        // }
+      })
+      .catch(() => {
+        // Fallback to static replies when server is unreachable
+        setMessages(prev => [...prev, {id: (Date.now() + 1).toString(), text: getBotReply(text), from: 'bot', time: nowTime()}]);
+      })
+      .finally(() => { setBotTyping(false); });
   };
 
   useEffect(() => {
@@ -214,7 +238,7 @@ const ChatBot = () => {
             keyExtractor={m => m.id}
             style={cs.messageList}
             contentContainerStyle={cs.messageContent}
-            renderItem={({item}) => (
+            renderItem={({item,index}) => (
               <View style={[cs.bubble, item.from === 'user' ? cs.bubbleUser : cs.bubbleBot]}>
                 {item.from === 'bot' && (
                   <View style={cs.botAvatarSmall}>
@@ -225,7 +249,12 @@ const ChatBot = () => {
                   <Text style={[cs.bubbleText, item.from === 'user' && cs.bubbleTextUser]}>
                     {item.text}
                   </Text>
-                  <Text style={[cs.bubbleTime, item.from === 'user' && cs.bubbleTimeUser]}>
+                  {item.hasNavigation && item?.navigation && messages?.length - 1 === index && (
+                    <Text style={[cs.bubbleNavigation, item.from === 'user' && cs.bubbleNavigationUser]} onPress={()=>handleNavigate(item?.navigation)}>
+                      {`See the details`}
+                    </Text>
+                  )}
+                  <Text style={[cs.bubbleTime, item.from === 'user' && cs.bubbleTimeUser]}> 
                     {item.time}
                   </Text>
                 </View>
